@@ -7,8 +7,8 @@ build:
 	javac $(objs)
 
 jar:
-	jar cfm gtp.jar manifest.txt $(classes)
+	jar cfm rfd.jar manifest.txt $(classes)
 
 clean:
 	@rm -f $(classes)
-	@rm -f gtp.jar
+	@rm -f rfd.jar
