@@ -825,6 +825,170 @@ public class PolyMain {
         }
     }
 
+
+    /**
+     * Computes all the inter-tree Robinson-Foulds distances between trees
+     *
+     * @param trees
+     * @param normalize
+     * @return
+     */
+    public static double[][] getAllInterTreeRFDistances(PhyloTree[] trees, boolean normalize) throws IOException {
+        Date startTime;
+        Date endTime;
+        int numTrees = trees.length;
+        long[][] compTimes = new long[numTrees][numTrees];
+        long avgCompTime = 0;
+        double[][] dists = new double[numTrees][numTrees];
+        //Geodesic[][] rfdists = new Geodesic[numTrees][numTrees];
+
+        for (int i = 0; i < numTrees; i++) {
+            for (int j = i + 1; j < numTrees; j++) {
+                startTime = new Date();
+                dists[i][j] = getRobinsonFouldsDistance(trees[i], trees[j], normalize);
+                endTime = new Date();
+                compTimes[i][j] = endTime.getTime() - startTime.getTime();
+                // sum up all the times, then divide by number of computations
+                avgCompTime = avgCompTime + compTimes[i][j];
+                //	System.out.println("computed in time " + compTimes[i][j] + " rfdists[" + i + "][" + j + "].getRS().getMinAscRSDistance() is " + rfdists[i][j].getRS().getMinAscRSDistance() + "; commonEdges is " +rfdists[i][j].getCommonEdges() + "; and leafContributionSquared is " + rfdists[i][j].getLeafContributionSquared());
+            }
+        }
+
+        // compute average
+        avgCompTime = avgCompTime / (numTrees * (numTrees - 1) / 2);
+        System.out.println("Average dist. computation was " + avgCompTime + " ms for " + numTrees * (numTrees - 1) / 2 + " trees.");
+
+        // we want to doublecheck
+        /*if (doubleCheck) {
+            avgCompTime = 0;
+            for (int i = 0; i < numTrees; i++) {
+                for (int j = i + 1; j < numTrees; j++) {
+                    startTime = new Date();
+                    rfdists[j][i] = getGeodesic(trees[j], trees[i], "geo_" + j + "_" + i);
+                    dists[j][i] = rfdists[j][i].getDist();
+                    endTime = new Date();
+                    compTimes[j][i] = endTime.getTime() - startTime.getTime();
+                    // sum up all the times, then divide by number of computations
+                    avgCompTime = avgCompTime + compTimes[j][i];
+
+                    if (Tools.truncate(rfdists[i][j].getDist(), 10) != Tools.truncate(rfdists[j][i].getDist(), 10)) {
+                        System.out.println("*** Distances don't match for trees " + i + " and " + j + "***");
+                        System.out.println("Dist " + i + " -> " + j + " is " + rfdists[i][j].getDist() + " but dist " + j + " -> " + i + " is " + rfdists[j][i].getDist());
+                        System.out.println("RS " + i + " -> " + j + "           : " + rfdists[i][j]);
+                        System.out.println("rfdists[" + i + "][" + j + "].getRS().getAscRSWithMinDist().getDistance() is " + rfdists[i][j].getRS().getNonDesRSWithMinDist().getDistance() + "; commonEdges is " + rfdists[i][j].getCommonEdges() + "; and leafContributionSquared is " + rfdists[i][j].getLeafContributionSquared());
+
+
+                        System.out.println("RS " + j + " -> " + i + " (reversed): " + rfdists[j][i].reverse());
+                        System.out.println("rfdists[" + j + "][" + i + "].getRS().getAscRSWithMinDist().getDistance() is " + rfdists[j][i].getRS().getNonDesRSWithMinDist().getDistance() + "; commonEdges is " + rfdists[j][i].getCommonEdges() + "; and leafContributionSquared is " + rfdists[j][i].getLeafContributionSquared());
+
+                    }
+                }
+            }
+//		 compute average
+            avgCompTime = avgCompTime / (numTrees * (numTrees - 1) / 2);
+            System.out.println("In doubleCheck, average dist. computation was " + avgCompTime + " ms for " + numTrees * (numTrees - 1) / 2 + " trees.");
+        } else {
+            // XXX: to avoid null pointers in outputting.  Fix this!
+            for (int i = 0; i < numTrees; i++) {
+                for (int j = i + 1; j < numTrees; j++) {
+                    rfdists[j][i] = rfdists[i][j];
+                }
+            }
+        }*/
+
+        return dists;
+    }
+
+    /**
+     * Open file fileName, reads in the trees, and outputs the distances computed by the
+     * Robinson-Foulds distance algorithm
+     */
+    public static void computeAllInterTreeRFDistancesFromFile(String inFileName, String outFileName, boolean normalize, boolean rooted) throws IOException {
+
+
+        PhyloTree[] trees = readInTreesFromFile(inFileName, rooted);
+        int numTrees = trees.length;
+        if (verbose >= 1) {
+            System.out.println("" + numTrees + " trees read in from " + inFileName);
+        }
+        double[][] rfdistances = getAllInterTreeRFDistances(trees, normalize);
+
+        // print distances to file
+        PrintWriter outputStream = null;
+
+        // Outputs the distances in a column, with the first two columns being the trees numbers and the third
+        // number the robinson-foulds distance between those trees
+        try {
+            outputStream = new PrintWriter(new FileWriter(outFileName));
+
+            for (int i = 0; i < numTrees - 1; i++) {
+                for (int j = i + 1; j < numTrees; j++) {
+/*    				if (verbose >0) {
+                        System.out.println("Geo " + i + " -> " + j + " is " + rfdistances[i][j]);
+						System.out.println(rfdistances[i][j].toStringVerbose(trees[i], trees[j]));
+					}*/
+                    outputStream.println(i + "\t" + j + "\t" + Tools.round(rfdistances[i][j], 8));
+                }
+                outputStream.println();
+            }
+            if (outputStream != null) {
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Error opening or writing to " + outFileName + ": " + e.getMessage());
+            throw e;
+        }
+    }
+
+    public static double[] getAllRowRFDistances(PhyloTree[] trees, int row,boolean normalize) throws IOException {
+
+        int numTrees = trees.length;
+        double[] dists = new double[numTrees];
+
+        PhyloTree referenceTree = trees[row];
+
+        for (int i = row + 1; i < numTrees; i++) {
+            dists[i] = getRobinsonFouldsDistance(referenceTree, trees[i], normalize);
+        }
+
+        return dists;
+    }
+
+
+    public static void computeAllRowRFDistancesFile(String inFileName, String outFileName, boolean rooted, int row,boolean normalize) throws IOException, IndexOutOfBoundsException {
+
+        PhyloTree[] trees = readInTreesFromFile(inFileName, rooted);
+        int numTrees = trees.length;
+        if (verbose >= 1) {
+            System.out.println("" + numTrees + " trees read in from " + inFileName);
+        }
+        if (row > numTrees - 1) {
+            throw new IndexOutOfBoundsException("Row value " + row + " is too high for " + numTrees + " trees (0-based numbering)");
+        }
+        double[] rfdistances = getAllRowRFDistances(trees,row,normalize);
+
+        // print distances to file
+        PrintWriter outputStream = null;
+
+        // Outputs the distances in a column, with the first two columns being the trees numbers and the third
+        // number the robinson-foulds distance between those trees
+        try {
+            outputStream = new PrintWriter(new FileWriter(outFileName));
+
+            for (int i = row + 1; i < numTrees; i++) {
+                outputStream.println(row + "\t" + i + "\t" + Tools.round(rfdistances[i], 8));
+            }
+
+            if (outputStream != null) {
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Error opening or writing to " + outFileName + ": " + e.getMessage());
+            throw e;
+        }
+    }
+
+
     /**
      * Help message (ie. which arguments can be used, etc.)
      */
@@ -945,9 +1109,11 @@ public class PolyMain {
         }
 
         if (row > -1) {
-            computeAllRowGeodesicsFromFile(treeFile, outFile, rooted, row);
+            //computeAllRowGeodesicsFromFile(treeFile, outFile, rooted, row);
+            computeAllRowRFDistancesFile(treeFile, outFile, rooted, row,false);
         } else {
-            computeAllInterTreeGeodesicsFromFile(treeFile, outFile, doubleCheck, rooted);
+            //computeAllInterTreeGeodesicsFromFile(treeFile, outFile, doubleCheck, rooted);
+            computeAllInterTreeRFDistancesFromFile(treeFile, outFile, false, rooted);
         }
 
         System.exit(0);
